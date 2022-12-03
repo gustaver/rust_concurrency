@@ -2,8 +2,9 @@ use std::sync::mpsc;
 use std::thread;
 use std::collections::HashMap;
 use rand::Rng;
-
+use itertools::Itertools;
 use std::error::Error;
+
 
 fn random_lorem_ipsum() -> Result<String, Box<dyn Error>> {
     let mut rng = rand::thread_rng();
@@ -34,15 +35,24 @@ fn main() {
         let tx_clone = tx.clone();
         thread::spawn(move || {
             match random_lorem_ipsum() {
-                Ok(body) => tx_clone.send(word_frequencies(body)).unwrap(),
+                Ok(body) => tx_clone.send((i, word_frequencies(body))).unwrap(),
                 Err(e) => panic!("Error getting random lorem ipsum {:?}", e)
             }
         });
     }
 
     let mut word_frequencies: HashMap<String, u32> = HashMap::new();
-    for received in rx {
+    for (i, received) in rx {
+        println!("Got response from thread {}", i);
+
         merge_maps(&mut word_frequencies, received);
-        println!("Word frequencies updated: {:?}", word_frequencies);
+
+        let top_words = word_frequencies
+            .iter()
+            .sorted_by_key(|(_, &c)| c)
+            .rev()
+            .take(10)
+            .collect::<Vec<_>>();
+        println!("Top words: {:?}", top_words);
     }
 }
